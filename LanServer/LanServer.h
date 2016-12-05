@@ -61,7 +61,6 @@ virtual void OnError(int errorcode, wchar *) = 0;
 #ifndef __LANSERVER__H__
 #define __LANSERVER__H__
 
-#define MAX_SESSION 100
 #define MAX_THREAD 50
 
 struct CSession
@@ -96,7 +95,7 @@ public :
 	int GetClientCount();
 
 	virtual void SendPacket(__int64 ClientID, CNPacket *pPacket) = 0;
-	virtual void OnClientJoin(CSession *pClient, __int64 ClientID) = 0;   // Accept 후 접속처리 완료 후 호출.
+	virtual void OnClientJoin(CSession *pSession, __int64 ClientID) = 0;   // Accept 후 접속처리 완료 후 호출.
 	virtual void OnClientLeave(__int64 ClientID) = 0;   						// Disconnect 후 호출
 	virtual bool OnConnectionRequest(WCHAR *ClientIP, int Port) = 0;				// accept 직후
 
@@ -112,12 +111,12 @@ private :
 	static unsigned __stdcall WorkerThread(LPVOID workerArg);
 	static unsigned __stdcall AcceptThread(LPVOID acceptArg);
 
-	void RecvPost();
-	void SendPost();
+	void RecvPost(CSession *pSession);
+	void SendPost(CSession *pSession);
 
 public :
-	void WorkerThead_Update(LPVOID workerArg);
-	void AcceptThead_Update(LPVOID acceptArg);
+	int WorkerThead_Update(LPVOID workerArg);
+	int AcceptThead_Update(LPVOID acceptArg);
 
 protected :
 	HANDLE hIOCP;
@@ -127,10 +126,10 @@ protected :
 
 	SOCKET listen_sock;
 
-	CSession Session[MAX_SESSION];
-
 	int iWorkerThdNum;
 	__int64 iSessionID;
+
+	int iSessionCount;
 };
 
 #endif
