@@ -33,6 +33,8 @@ void CLanServerTest::SendPacket(__int64 ClientID, CNPacket *pPacket)
 		if (Client[iCnt]._Session->_iSessionID == ClientID)
 			break;
 	}
+	Client[iCnt]._Session->SendQ.Put((char *)pPacket, pPacket->GetDataSize());
+	SendPost(Client[iCnt]._Session);
 }
 
 void CLanServerTest::OnClientJoin(CSession *pSession, __int64 ClientID)		// Accept 후 접속처리 완료 후 호출.
@@ -46,10 +48,6 @@ void CLanServerTest::OnClientJoin(CSession *pSession, __int64 ClientID)		// Acce
 	}
 
 	pSession->_iSessionID = iClientID++;
-	pSession->RecvQ.ClearBuffer();
-	pSession->SendQ.ClearBuffer();
-	pSession->_bSendFlag = FALSE;
-	pSession->_lIOCount = 0;
 	Client[iCnt]._Session = pSession;
 }
 

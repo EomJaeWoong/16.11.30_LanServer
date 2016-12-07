@@ -107,7 +107,7 @@ public :
 
 	virtual void OnError(int errorCode, WCHAR *errorString) = 0;
 	
-private :
+protected :
 	static unsigned __stdcall WorkerThread(LPVOID workerArg);
 	static unsigned __stdcall AcceptThread(LPVOID acceptArg);
 
