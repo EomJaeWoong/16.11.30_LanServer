@@ -26,7 +26,13 @@ void CLanServerTest::Initial()
 
 void CLanServerTest::SendPacket(__int64 ClientID, CNPacket *pPacket)
 {
+	int iCnt = 0;
 
+	for (iCnt = 0; iCnt < MAX_CLIENT; iCnt++)
+	{
+		if (Client[iCnt]._Session->_iSessionID == ClientID)
+			break;
+	}
 }
 
 void CLanServerTest::OnClientJoin(CSession *pSession, __int64 ClientID)		// Accept 후 접속처리 완료 후 호출.

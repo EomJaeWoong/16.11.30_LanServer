@@ -118,11 +118,11 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 		OVERLAPPED *pOverlapped = NULL;
 		CSession *pSession = NULL;
 
-		retval = GetQueuedCompletionStatus(hIOCP, &dwTransferred, (PULONG_PTR)&pSession,
+		retval = GetQueuedCompletionStatus(hIOCP, &dwTransferred, (LPDWORD)&pSession,
 			(LPOVERLAPPED *)pOverlapped, INFINITE);
 
 		OnWorkerThreadBegin();
-
+		. 
 		/////////////////////////////////////////////////////////////////////////////////////////////
 		// Error, 종료 처리
 		//////////////////////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +158,8 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 		else if (pOverlapped == &pSession->_RecvOverlapped)
 		{
 			RecvPost(pSession);
+			int iSize = nPacket.Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
+			pSession->RecvQ.RemoveData(iSize);
 			OnRecv(pSession->_iSessionID, &nPacket);
 		}
 
