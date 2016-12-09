@@ -33,6 +33,7 @@ void CLanServerTest::SendPacket(__int64 ClientID, CNPacket *pPacket)
 		if (Client[iCnt]._Session->_iSessionID == ClientID)
 			break;
 	}
+
 	Client[iCnt]._Session->SendQ.Put((char *)pPacket->GetBufferPtr(), pPacket->GetDataSize());
 	SendPost(Client[iCnt]._Session);
 }

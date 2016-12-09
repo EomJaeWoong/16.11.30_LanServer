@@ -1,6 +1,7 @@
 #include <winsock2.h>
 #include <process.h>
 #include <WS2tcpip.h>
+#include <stdio.h>
 
 #pragma comment (lib, "Ws2_32.lib")
 
@@ -97,6 +98,15 @@ BOOL CLanServer::Start(WCHAR *wOpenIP, int iPort, int iWorkerThdNum, BOOL bNagle
 			);
 	}
 
+	hMonitorThread = (HANDLE)_beginthreadex(
+		NULL,
+		0,
+		MonitorThread,
+		this,
+		0,
+		(unsigned int *)&dwThreadID
+		);
+
 	return TRUE;
 }
 
@@ -105,11 +115,10 @@ void CLanServer::Stop()
 
 }
 
-int CLanServer::WorkerThead_Update(LPVOID workerArg)
+int CLanServer::WorkerThread_Update(LPVOID workerArg)
 {
 	int retval;
 	WSABUF wsaBuf;
-	CNPacket nPacket;
 
 	while (1)
 	{
@@ -148,7 +157,8 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 			{
 				// ?
 				int iErrorCode = WSAGetLastError();
-				OnError(iErrorCode, L"");
+				OnError(iErrorCode, L"error");
+
 				Disconnect(pSession);
 
 				return iErrorCode;
@@ -161,12 +171,14 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 		//recv
 		else if (pOverlapped == &pSession->_RecvOverlapped)
 		{
+			CNPacket nPacket;
+
 			pSession->RecvQ.MoveWritePos(dwTransferred);
-			RecvPost(pSession);
 			int iSize = nPacket.Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
 			pSession->RecvQ.RemoveData(iSize);
 			OnRecv(pSession->_iSessionID, &nPacket);
-			nPacket.Clear();
+			RecvPost(pSession);
+			InterlockedIncrement((LONG *)&_RecvPacketCounter);
 		}
 
 		//send
@@ -176,8 +188,7 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 			pSession->_bSendFlag = FALSE;
 
 			OnSend(pSession->_iSessionID, dwTransferred);
-
-			if (pSession->_bSendFlag)	return -1;
+			InterlockedIncrement((LONG *)&_SendPacketCounter);
 		}
 
 		//Session Release
@@ -186,11 +197,10 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 
 		OnWorkerThreadEnd();
 	}
-
 	return 0;
 }
 
-int CLanServer::AcceptThead_Update(LPVOID acceptArg)
+int CLanServer::AcceptThread_Update(LPVOID acceptArg)
 {
 	HANDLE retval;
 
@@ -202,6 +212,8 @@ int CLanServer::AcceptThead_Update(LPVOID acceptArg)
 	while (1)
 	{
 		pSession->_socket = accept(listen_sock, (SOCKADDR *)&clientSock, &addrlen);
+		_AcceptCounter++;
+
 		if (pSession->_socket == INVALID_SOCKET)
 		{
 			int iErrorCode = GetLastError();
@@ -240,14 +252,43 @@ int CLanServer::AcceptThead_Update(LPVOID acceptArg)
 	return 0;
 }
 
+int CLanServer::MonitorThread_Update(LPVOID monitorArg)
+{
+	while (1)
+	{
+		_AcceptTPS = _AcceptCounter;
+		_RecvPacketTPS = _RecvPacketCounter;
+		_SendPacketTPS = _SendPacketCounter;
+
+		_AcceptCounter = 0;
+		_RecvPacketCounter = 0;
+		_SendPacketCounter = 0;
+
+		wprintf(L"------------------------------------------------\n");
+		wprintf(L"Connect Session : %d\n", iSessionCount);
+		wprintf(L"Accept TPS : %d\n", _AcceptTPS);
+		wprintf(L"RecvPacket TPS : %d\n", _RecvPacketTPS);
+		wprintf(L"SendPacket TPS : %d\n", _SendPacketTPS);
+		wprintf(L"PacketPool Use : %d\n", 0);
+		wprintf(L"PacketPool Alloc : %d\n", 0);
+		wprintf(L"------------------------------------------------\n\n");
+		Sleep(999);
+	}
+}
+
 unsigned __stdcall CLanServer::WorkerThread(LPVOID workerArg)
 {
-	return ((CLanServer *)workerArg)->WorkerThead_Update(workerArg);
+	return ((CLanServer *)workerArg)->WorkerThread_Update(workerArg);
 }
 
 unsigned __stdcall CLanServer::AcceptThread(LPVOID acceptArg)
 {
-	return ((CLanServer *)acceptArg)->AcceptThead_Update(acceptArg);
+	return ((CLanServer *)acceptArg)->AcceptThread_Update(acceptArg);
+}
+
+unsigned __stdcall CLanServer::MonitorThread(LPVOID monitorArg)
+{
+	return ((CLanServer *)monitorArg)->MonitorThread_Update(monitorArg);
 }
 
 void CLanServer::RecvPost(CSession *pSession)
@@ -267,6 +308,7 @@ void CLanServer::RecvPost(CSession *pSession)
 		int iErrorCode = GetLastError();
 		if (iErrorCode != WSA_IO_PENDING)
 		{
+			OnError(iErrorCode, L"RecvPost Error\n");
 			if (0 == InterlockedDecrement((LONG *)&pSession->_lIOCount))
 				//Session Release
 				ReleaseSession(pSession);
@@ -276,7 +318,7 @@ void CLanServer::RecvPost(CSession *pSession)
 	}
 }
 
-void CLanServer::SendPost(CSession *pSession)
+BOOL CLanServer::SendPost(CSession *pSession)
 {
 	int retval, iCount;
 	DWORD dwRecvSize, dwflag = 0;
@@ -285,22 +327,28 @@ void CLanServer::SendPost(CSession *pSession)
 	wBuf.buf = pSession->SendQ.GetReadBufferPtr();
 	wBuf.len = pSession->SendQ.GetUseSize();
 
-	if (pSession->_bSendFlag != TRUE){
+	if (pSession->_bSendFlag == TRUE)	return FALSE;
+
+	else{
 		InterlockedIncrement((LONG *)&pSession->_lIOCount);
 		pSession->_bSendFlag = TRUE;
 		retval = WSASend(pSession->_socket, &wBuf, 1, &dwRecvSize, dwflag, &pSession->_SendOverlapped, NULL);
 		if (retval == SOCKET_ERROR)
 		{
-			if (GetLastError() != WSA_IO_PENDING)
+			int iErrorCode = GetLastError();
+			if (iErrorCode != WSA_IO_PENDING)
 			{
+				OnError(iErrorCode, L"SendPost Error\n");
 				if (0 == InterlockedDecrement(&pSession->_lIOCount))
 					//Session Release
 					ReleaseSession(pSession);
 
-				return;
+				return FALSE;
 			}
 		}
 	}
+	
+	return TRUE;
 }
 
 int CLanServer::GetClientCount()

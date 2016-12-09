@@ -110,17 +110,28 @@ public :
 protected :
 	static unsigned __stdcall WorkerThread(LPVOID workerArg);
 	static unsigned __stdcall AcceptThread(LPVOID acceptArg);
+	static unsigned __stdcall MonitorThread(LPVOID monitorArg);
 
 	void RecvPost(CSession *pSession);
-	void SendPost(CSession *pSession);
+	BOOL SendPost(CSession *pSession);
 
 public :
-	int WorkerThead_Update(LPVOID workerArg);
-	int AcceptThead_Update(LPVOID acceptArg);
+	int WorkerThread_Update(LPVOID workerArg);
+	int AcceptThread_Update(LPVOID acceptArg);
+	int MonitorThread_Update(LPVOID monitorArg);
 
 private :
 	void Disconnect(CSession *pSession);
 	void ReleaseSession(CSession *pSession);
+
+public :
+	int _AcceptCounter;
+	int _RecvPacketCounter;
+	int _SendPacketCounter;
+
+	int _AcceptTPS;
+	int _RecvPacketTPS;
+	int _SendPacketTPS;
 
 protected :
 	////////////////////////////////////////////////////////////////////////
@@ -133,6 +144,7 @@ protected :
 	////////////////////////////////////////////////////////////////////////
 	HANDLE hAcceptThread;
 	HANDLE hWorkerThread[MAX_THREAD];
+	HANDLE hMonitorThread;
 
 	////////////////////////////////////////////////////////////////////////
 	// listen socket
