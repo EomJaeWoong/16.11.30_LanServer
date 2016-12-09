@@ -130,14 +130,17 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 		if (retval == FALSE && (pOverlapped == NULL || pSession == NULL))
 		{
 			int iErrorCode = WSAGetLastError();
-			OnError(iErrorCode, NULL);
+			OnError(iErrorCode, L"IOCP Error\n");
 
 			return -1;
 		}
 
 		//워커스레드 정상 종료
 		else if (dwTransferred == 0 && pSession == NULL && pOverlapped == NULL)
+		{
+			OnError(0, L"Worker Thread Done.\n");
 			return 0;
+		}
 
 		else if (dwTransferred == 0)
 		{
@@ -145,7 +148,9 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 			{
 				// ?
 				int iErrorCode = WSAGetLastError();
-				OnError(iErrorCode, NULL);
+				OnError(iErrorCode, L"");
+				Disconnect(pSession);
+
 				return iErrorCode;
 			}
 
@@ -161,6 +166,7 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 			int iSize = nPacket.Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
 			pSession->RecvQ.RemoveData(iSize);
 			OnRecv(pSession->_iSessionID, &nPacket);
+			nPacket.Clear();
 		}
 
 		//send
@@ -168,15 +174,15 @@ int CLanServer::WorkerThead_Update(LPVOID workerArg)
 		{
 			pSession->SendQ.RemoveData(dwTransferred);
 			pSession->_bSendFlag = FALSE;
-			SendPost(pSession);
 
 			OnSend(pSession->_iSessionID, dwTransferred);
 
 			if (pSession->_bSendFlag)	return -1;
 		}
 
+		//Session Release
 		if (0 == InterlockedDecrement((LONG *)&pSession->_lIOCount))
-		{ }	//Session Release
+			ReleaseSession(pSession);
 
 		OnWorkerThreadEnd();
 	}
@@ -206,6 +212,7 @@ int CLanServer::AcceptThead_Update(LPVOID acceptArg)
 
 		if (!OnConnectionRequest(clientIP, ntohs(clientSock.sin_port)))		// accept 직후
 		{
+			continue;
 		}	//클라이언트 거부
 
 		//Session 초기화
@@ -236,8 +243,6 @@ int CLanServer::AcceptThead_Update(LPVOID acceptArg)
 unsigned __stdcall CLanServer::WorkerThread(LPVOID workerArg)
 {
 	return ((CLanServer *)workerArg)->WorkerThead_Update(workerArg);
-
-	
 }
 
 unsigned __stdcall CLanServer::AcceptThread(LPVOID acceptArg)
@@ -263,8 +268,9 @@ void CLanServer::RecvPost(CSession *pSession)
 		if (iErrorCode != WSA_IO_PENDING)
 		{
 			if (0 == InterlockedDecrement((LONG *)&pSession->_lIOCount))
-			{}//Session Release
-				//ReleaseClient();
+				//Session Release
+				ReleaseSession(pSession);
+
 			return;
 		}
 	}
@@ -276,8 +282,8 @@ void CLanServer::SendPost(CSession *pSession)
 	DWORD dwRecvSize, dwflag = 0;
 	WSABUF wBuf;
 
-	wBuf.buf = pSession->SendQ.GetWriteBufferPtr();
-	wBuf.len = pSession->SendQ.GetNotBrokenGetSize();
+	wBuf.buf = pSession->SendQ.GetReadBufferPtr();
+	wBuf.len = pSession->SendQ.GetUseSize();
 
 	InterlockedIncrement((LONG *)&pSession->_lIOCount);
 	pSession->_bSendFlag = TRUE;
@@ -286,10 +292,10 @@ void CLanServer::SendPost(CSession *pSession)
 	{
 		if (GetLastError() != WSA_IO_PENDING)
 		{
-			if (0 == InterlockedDecrement(&pSession->_lIOCount))
-			{
-			}//Session Release
-			//ReleaseClient();
+			if (0 == InterlockedDecrement(&pSession->_lIOCount))			
+				//Session Release
+				ReleaseSession(pSession);
+
 			return;
 		}
 	}
@@ -298,4 +304,22 @@ void CLanServer::SendPost(CSession *pSession)
 int CLanServer::GetClientCount()
 {
 	return iSessionCount;
+}
+
+void CLanServer::Disconnect(CSession *pSession)
+{
+	shutdown(pSession->_socket, SD_BOTH);
+	pSession->_socket = INVALID_SOCKET;
+}
+
+void CLanServer::ReleaseSession(CSession *pSession)
+{
+	if (pSession->SendQ.GetUseSize() != 0)
+		return;
+
+	if (pSession->RecvQ.GetUseSize() != 0)
+		return;
+
+	shutdown(pSession->_socket, SD_BOTH);
+	pSession->_socket = INVALID_SOCKET;
 }

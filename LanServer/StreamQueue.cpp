@@ -10,7 +10,7 @@
 /////////////////////////////////////////////////////////////////////////
 CAyaStreamSQ::CAyaStreamSQ()
 {
-	Initial(1000);
+	Initial(10000);
 }
 
 CAyaStreamSQ::CAyaStreamSQ(int iBufferSize)
@@ -186,7 +186,7 @@ void CAyaStreamSQ::RemoveData(int iSize)
 	if (GetUseSize() < iSize)
 		return;
 	else
-		m_iReadPos += iSize;
+		m_iReadPos = (m_iReadPos + iSize) % GetBufferSize();
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -200,7 +200,7 @@ int	CAyaStreamSQ::MoveWritePos(int iSize)
 	if (GetFreeSize() < iSize)
 		return 0;
 	else
-		m_iWritePos += iSize;
+		m_iWritePos = (m_iWritePos + iSize) % GetBufferSize();
 
 	return iSize;
 }

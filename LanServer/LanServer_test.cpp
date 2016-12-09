@@ -33,7 +33,7 @@ void CLanServerTest::SendPacket(__int64 ClientID, CNPacket *pPacket)
 		if (Client[iCnt]._Session->_iSessionID == ClientID)
 			break;
 	}
-	Client[iCnt]._Session->SendQ.Put((char *)pPacket, pPacket->GetDataSize());
+	Client[iCnt]._Session->SendQ.Put((char *)pPacket->GetBufferPtr(), pPacket->GetDataSize());
 	SendPost(Client[iCnt]._Session);
 }
 
@@ -114,22 +114,5 @@ void CLanServerTest::OnWorkerThreadEnd()								// 워커스레드 1루프 종료 후
 
 void CLanServerTest::OnError(int errorCode, WCHAR *errorString)
 {
-	LPVOID lpMsgBuf;
-
-	if (NULL == errorString)
-	{
-		FormatMessage(
-			FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL,
-			errorCode,
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-			(LPTSTR)&lpMsgBuf,
-			0, NULL);
-
-		errorString = (WCHAR *)lpMsgBuf;
-	}
-
 	wprintf(L"ErrorCode : %d, ErrorMsg : %s\n", errorCode, errorString);
 }
