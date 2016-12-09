@@ -285,18 +285,20 @@ void CLanServer::SendPost(CSession *pSession)
 	wBuf.buf = pSession->SendQ.GetReadBufferPtr();
 	wBuf.len = pSession->SendQ.GetUseSize();
 
-	InterlockedIncrement((LONG *)&pSession->_lIOCount);
-	pSession->_bSendFlag = TRUE;
-	retval = WSASend(pSession->_socket, &wBuf, 1, &dwRecvSize, dwflag, &pSession->_SendOverlapped, NULL);
-	if (retval == SOCKET_ERROR)
-	{
-		if (GetLastError() != WSA_IO_PENDING)
+	if (pSession->_bSendFlag != TRUE){
+		InterlockedIncrement((LONG *)&pSession->_lIOCount);
+		pSession->_bSendFlag = TRUE;
+		retval = WSASend(pSession->_socket, &wBuf, 1, &dwRecvSize, dwflag, &pSession->_SendOverlapped, NULL);
+		if (retval == SOCKET_ERROR)
 		{
-			if (0 == InterlockedDecrement(&pSession->_lIOCount))			
-				//Session Release
-				ReleaseSession(pSession);
+			if (GetLastError() != WSA_IO_PENDING)
+			{
+				if (0 == InterlockedDecrement(&pSession->_lIOCount))
+					//Session Release
+					ReleaseSession(pSession);
 
-			return;
+				return;
+			}
 		}
 	}
 }

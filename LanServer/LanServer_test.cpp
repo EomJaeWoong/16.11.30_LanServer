@@ -109,7 +109,7 @@ void CLanServerTest::OnWorkerThreadBegin()								// 워커스레드 GQCS 바로 하단에
 
 void CLanServerTest::OnWorkerThreadEnd()								// 워커스레드 1루프 종료 후
 {
-
+	
 }
 
 void CLanServerTest::OnError(int errorCode, WCHAR *errorString)
