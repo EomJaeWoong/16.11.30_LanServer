@@ -61,18 +61,6 @@ bool CLanServerTest::OnConnectionRequest(WCHAR *ClientIP, int Port)		// accept �
 {
 	if (iSessionCount >= MAX_CLIENT)	return false;
 
-	/*
-	for (int iCnt = 0; iCnt < MAX_CLIENT; iCnt++)
-	{
-		if (Client[iCnt]._Session == NULL)
-		{
-			wcscpy_s(pSession->_IP, 16, ClientIP);
-			pSession->_iPort = ntohs(Port);
-			pSession->_iSessionID = iClientID++;
-			break;
-		}
-	}
-	*/
 	return true;
 }
 
@@ -80,20 +68,23 @@ void CLanServerTest::OnRecv(__int64 ClientID, CNPacket *pPacket)			// 패킷 수신 
 {
 	CNPacket nPacket;
 
-	short sHeader;
-	__int64 iPayload;
+	while (pPacket->GetDataSize() > 0)
+	{
+		short sHeader;
+		__int64 iPayload;
 
-	*pPacket >> sHeader;
-	*pPacket >> iPayload;
+		*pPacket >> sHeader;
+		*pPacket >> iPayload;
 
-	if (sHeader != sizeof(iPayload))
-		return;
+		if (sHeader != sizeof(iPayload))
+			return;
 
-	////////////////////////////////////////////////////////////////
-	// 패킷 제작
-	////////////////////////////////////////////////////////////////
-	nPacket << (short)8;
-	nPacket << iPayload;
+		////////////////////////////////////////////////////////////////
+		// 패킷 제작
+		////////////////////////////////////////////////////////////////
+		nPacket << (short)8;
+		nPacket << iPayload;
+	}
 
 	SendPacket(ClientID, &nPacket);
 }

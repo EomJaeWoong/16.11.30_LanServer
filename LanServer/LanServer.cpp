@@ -133,7 +133,7 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////
 		// Error, 종료 처리
-		//////////////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////////
 
 		// IOCP 에러 서버 종료
 		if (retval == FALSE && (pOverlapped == NULL || pSession == NULL))
@@ -154,33 +154,36 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 		else if (dwTransferred == 0)
 		{
 			if (retval == FALSE)
-			{
-				// ?
-				int iErrorCode = WSAGetLastError();
-				OnError(iErrorCode, L"error");
-
 				Disconnect(pSession);
-
-				return iErrorCode;
-			}
 
 			//정상종료
 			return 0;
 		}
 		
-		//recv
+		/////////////////////////////////////////////////////////////////////////////////////////////
+		// Recv 완료
+		// 1. RecvQ Write 위치 옮김
+		// 2. 패킷에 받은거 다 넣기
+		// 3. 패킷 처리 부분
+		// 4. Recv 등록
+		// 5. Recv 카운터 + 1
+		/////////////////////////////////////////////////////////////////////////////////////////////
 		else if (pOverlapped == &pSession->_RecvOverlapped)
 		{
 			CNPacket nPacket;
 
 			pSession->RecvQ.MoveWritePos(dwTransferred);
+
 			int iSize = nPacket.Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
 			pSession->RecvQ.RemoveData(iSize);
-			OnRecv(pSession->_iSessionID, &nPacket);
-			RecvPost(pSession);
-			InterlockedIncrement((LONG *)&_RecvPacketCounter);
-		}
 
+			OnRecv(pSession->_iSessionID, &nPacket);
+
+			RecvPost(pSession);
+
+			InterlockedAdd((LONG *)&_RecvPacketCounter, dwTransferred / 10);
+		}
+		
 		//send
 		else if (pOverlapped == &pSession->_SendOverlapped)
 		{
@@ -188,7 +191,7 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 			pSession->_bSendFlag = FALSE;
 
 			OnSend(pSession->_iSessionID, dwTransferred);
-			InterlockedIncrement((LONG *)&_SendPacketCounter);
+			InterlockedAdd((LONG *)&_SendPacketCounter, dwTransferred / 10);
 		}
 
 		//Session Release
@@ -204,22 +207,23 @@ int CLanServer::AcceptThread_Update(LPVOID acceptArg)
 {
 	HANDLE retval;
 
-	CSession *pSession = new CSession;
+	CSession *pSession;
 	int addrlen = sizeof(SOCKADDR_IN);
 	SOCKADDR_IN clientSock;
 	WCHAR clientIP[16];
 
 	while (1)
 	{
+		pSession = new CSession;
 		pSession->_socket = accept(listen_sock, (SOCKADDR *)&clientSock, &addrlen);
-		_AcceptCounter++;
 
 		if (pSession->_socket == INVALID_SOCKET)
 		{
-			int iErrorCode = GetLastError();
-			OutputDebugString((WCHAR *)iErrorCode);
+			Disconnect(pSession);
+			continue;
 		}
 
+		InterlockedIncrement((LONG *)&_AcceptCounter);
 		InetNtop(AF_INET, &clientSock.sin_addr, clientIP, 16);
 
 		if (!OnConnectionRequest(clientIP, ntohs(clientSock.sin_port)))		// accept 직후
@@ -272,6 +276,7 @@ int CLanServer::MonitorThread_Update(LPVOID monitorArg)
 		wprintf(L"PacketPool Use : %d\n", 0);
 		wprintf(L"PacketPool Alloc : %d\n", 0);
 		wprintf(L"------------------------------------------------\n\n");
+
 		Sleep(999);
 	}
 }
