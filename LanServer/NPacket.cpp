@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "MemoryPool.h"
 #include "NPacket.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -12,16 +13,19 @@
 // Return:
 //////////////////////////////////////////////////////////////////////////
 CNPacket::CNPacket()
+	:m_MemPool(1000)
 {
 	Initial();
 }
 
 CNPacket::CNPacket(int iBufferSize)
+	: m_MemPool(1000)
 {
 	Initial(iBufferSize);
 }
 
 CNPacket::CNPacket(const CNPacket &clSrcPacket)
+	: m_MemPool(1000)
 {
 	
 }
@@ -312,4 +316,15 @@ int		CNPacket::PutData(unsigned char *bypSrc, int iSrcSize)
 	}
 
 	return iCnt;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// 패킷 메모리 풀에서 할당.
+//
+// Parameters: 없음
+// Return: 해당 메모리 주소
+//////////////////////////////////////////////////////////////////////////
+bool	CNPacket::Alloc()
+{
+	cPacket = m_MemPool.Alloc()
 }

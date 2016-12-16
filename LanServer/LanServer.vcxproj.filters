@@ -27,6 +27,9 @@
     <ClInclude Include="LanServer_test.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="MemoryPool.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NPacket.cpp">

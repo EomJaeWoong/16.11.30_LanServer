@@ -80,6 +80,7 @@
   <ItemGroup>
     <ClInclude Include="LanServer.h" />
     <ClInclude Include="LanServer_test.h" />
+    <ClInclude Include="MemoryPool.h" />
     <ClInclude Include="NPacket.h" />
     <ClInclude Include="StreamQueue.h" />
   </ItemGroup>
