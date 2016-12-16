@@ -6,6 +6,7 @@
 #pragma comment (lib, "Ws2_32.lib")
 
 #include "StreamQueue.h"
+#include "MemoryPool.h"
 #include "NPacket.h"
 #include "LanServer.h"
 
@@ -170,14 +171,14 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 		/////////////////////////////////////////////////////////////////////////////////////////////
 		else if (pOverlapped == &pSession->_RecvOverlapped)
 		{
-			CNPacket nPacket;
+			CNPacket *pPacket =
 
 			pSession->RecvQ.MoveWritePos(dwTransferred);
 
-			int iSize = nPacket.Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
+			int iSize = pPacket->Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
 			pSession->RecvQ.RemoveData(iSize);
 
-			OnRecv(pSession->_iSessionID, &nPacket);
+			OnRecv(pSession->_iSessionID, pPacket);
 
 			RecvPost(pSession);
 

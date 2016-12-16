@@ -13,19 +13,19 @@
 // Return:
 //////////////////////////////////////////////////////////////////////////
 CNPacket::CNPacket()
-	:m_MemPool(1000)
+	:_MemPool(1000)
 {
 	Initial();
 }
 
 CNPacket::CNPacket(int iBufferSize)
-	: m_MemPool(1000)
+	: _MemPool(1000)
 {
 	Initial(iBufferSize);
 }
 
 CNPacket::CNPacket(const CNPacket &clSrcPacket)
-	: m_MemPool(1000)
+	: _MemPool(1000)
 {
 	
 }
@@ -324,7 +324,26 @@ int		CNPacket::PutData(unsigned char *bypSrc, int iSrcSize)
 // Parameters: 없음
 // Return: 해당 메모리 주소
 //////////////////////////////////////////////////////////////////////////
-bool	CNPacket::Alloc()
+CNPacket*	CNPacket::Alloc()
 {
-	cPacket = m_MemPool.Alloc()
+	CNPacket *pPacket = _MemPool.Alloc();
+	if (cPacket == NULL)
+		return false;
+
+	cPacket->addRef();
+	cPacket->Clear();
+
+	return cPacket;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// 패킷 메모리 풀에서 해제.
+//
+// Parameters: 없음
+// Return: 해당 메모리 주소
+//////////////////////////////////////////////////////////////////////////
+bool CNPacket::Free()
+{
+	if (0 == InterlockedDecrement(&m_lRefCnt))
+		_MemPool.Free(this);
 }
