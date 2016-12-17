@@ -74,7 +74,7 @@ public:
 		Release();
 	}
 
-	void Initial(int iBlockNum, bool bLockFlag)
+	void Initial(int iBlockNum, bool bLockFlag = false)
 	{
 		////////////////////////////////////////////////////////////////
 		// 메모리 풀 크기 설정

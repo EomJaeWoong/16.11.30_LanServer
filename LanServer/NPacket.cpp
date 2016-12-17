@@ -1,6 +1,9 @@
 #include <windows.h>
-#include "MemoryPool.h"
 #include "NPacket.h"
+
+CMemoryPool<CNPacket> CNPacket::_MemPool(1000);
+CNPacket *CNPacket::cPacket = NULL;
+long CNPacket::m_lRefCnt = 0;
 
 //////////////////////////////////////////////////////////////////////////
 // 생성자, 파괴자.
@@ -13,19 +16,16 @@
 // Return:
 //////////////////////////////////////////////////////////////////////////
 CNPacket::CNPacket()
-	:_MemPool(1000)
 {
 	Initial();
 }
 
 CNPacket::CNPacket(int iBufferSize)
-	: _MemPool(1000)
 {
 	Initial(iBufferSize);
 }
 
 CNPacket::CNPacket(const CNPacket &clSrcPacket)
-	: _MemPool(1000)
 {
 	
 }
@@ -326,10 +326,11 @@ int		CNPacket::PutData(unsigned char *bypSrc, int iSrcSize)
 //////////////////////////////////////////////////////////////////////////
 CNPacket*	CNPacket::Alloc()
 {
-	CNPacket *pPacket = _MemPool.Alloc();
+	cPacket = _MemPool.Alloc();
 	if (cPacket == NULL)
 		return false;
 
+	new (cPacket)CNPacket;
 	cPacket->addRef();
 	cPacket->Clear();
 
@@ -344,6 +345,11 @@ CNPacket*	CNPacket::Alloc()
 //////////////////////////////////////////////////////////////////////////
 bool CNPacket::Free()
 {
-	if (0 == InterlockedDecrement(&m_lRefCnt))
+	if (0 < InterlockedDecrement(&m_lRefCnt))
+	{
 		_MemPool.Free(this);
+		return true;
+	}
+
+	return false;
 }
