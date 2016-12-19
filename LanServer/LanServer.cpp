@@ -126,7 +126,7 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 		OVERLAPPED *pOverlapped = NULL;
 		CSession *pSession = NULL;
 
-		retval = GetQueuedCompletionStatus(hIOCP, &dwTransferred, (LPDWORD)&pSession,
+		retval = GetQueuedCompletionStatus(hIOCP, &dwTransferred, (PULONG_PTR)&pSession,
 			(LPOVERLAPPED *)&pOverlapped, INFINITE);
 
 		OnWorkerThreadBegin();
@@ -178,6 +178,7 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 			pSession->RecvQ.RemoveData(iSize);
 
 			OnRecv(pSession->_iSessionID, pPacket);
+			pPacket->Free();
 
 			RecvPost(pSession);
 
@@ -191,7 +192,7 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 			pSession->_bSendFlag = FALSE;
 
 			OnSend(pSession->_iSessionID, dwTransferred);
-			//InterlockedAdd((LONG *)&_SendPacketCounter, dwTransferred / 10);
+			InterlockedAdd((LONG *)&_SendPacketCounter, dwTransferred / 10);
 		}
 
 		//Session Release
@@ -243,7 +244,7 @@ int CLanServer::AcceptThread_Update(LPVOID acceptArg)
 		pSession->_bSendFlag = FALSE;
 		pSession->_lIOCount = 0;
 
-		retval = CreateIoCompletionPort((HANDLE)pSession->_socket, hIOCP, (DWORD)pSession, 0);
+		retval = CreateIoCompletionPort((HANDLE)pSession->_socket, hIOCP, (ULONG_PTR)pSession, 0);
 		if (!retval)
 			continue;
 
@@ -329,25 +330,29 @@ void CLanServer::RecvPost(CSession *pSession)
 BOOL CLanServer::SendPost(CSession *pSession)
 {
 	int retval, iCount = 0;
-	DWORD dwRecvSize, dwflag = 0;
-	WSABUF wBuf[100];
-	CNPacket *pPacket = CNPacket::Alloc();
+	DWORD dwSendSize, dwflag = 0;
+	WSABUF wBuf;
 
-	while (1)
+	wBuf.buf = pSession->SendQ.GetReadBufferPtr();
+	wBuf.len = pSession->SendQ.GetUseSize();
+
+	/*
+	while (pSession->SendQ.GetUseSize() > 0)
 	{
-		pSession->SendQ.Peek((char *)&pPacket, 10);
-		wBuf[iCount].buf = (CHAR *)pPacket->GetBufferPtr();
+		pSession->SendQ.Get((char *)pPacket, 8);
+
+		wBuf[iCount].buf = (char *)pPacket->GetBufferPtr();
 		wBuf[iCount].len = pPacket->GetDataSize();
 		InterlockedIncrement((LONG *)&_SendPacketCounter);
 	}
-	
+	*/
 
 	if (pSession->_bSendFlag == TRUE)	return FALSE;
 
 	else{
 		InterlockedIncrement((LONG *)&pSession->_lIOCount);
 		pSession->_bSendFlag = TRUE;
-		retval = WSASend(pSession->_socket, wBuf, 100, &dwRecvSize, dwflag, &pSession->_SendOverlapped, NULL);
+		retval = WSASend(pSession->_socket, &wBuf, 1, &dwSendSize, dwflag, &pSession->_SendOverlapped, NULL);
 		if (retval == SOCKET_ERROR)
 		{
 			int iErrorCode = GetLastError();

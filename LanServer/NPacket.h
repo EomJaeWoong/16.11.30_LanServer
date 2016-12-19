@@ -178,6 +178,8 @@ public:
 	// Return: (unsigned char *)버퍼 포인터.
 	//////////////////////////////////////////////////////////////////////////
 	unsigned char *GetBufferPtr(void) const { return m_chpBuffer; }
+	unsigned char *GetWriteBufferPtr(void) const { return m_chpWritePos;  }
+	unsigned char *GetReadBufferPtr(void) const { return m_chpReadPos; }
 
 	//////////////////////////////////////////////////////////////////////////
 	// 버퍼 Pos 이동. (음수이동은 안됨)
