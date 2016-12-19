@@ -143,7 +143,6 @@ public:
 		stpBlock->stpNextBlock = m_stpTop;
 
 		m_stpTop = stpBlock;
-		pData = NULL;
 
 		return false;
 	}

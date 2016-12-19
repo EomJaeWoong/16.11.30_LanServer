@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "NPacket.h"
 
-CMemoryPool<CNPacket> CNPacket::_MemPool(100000);
+CMemoryPool<CNPacket> CNPacket::_MemPool(50000);
 CNPacket *CNPacket::cPacket = NULL;
 long CNPacket::m_lRefCnt = 0;
 
