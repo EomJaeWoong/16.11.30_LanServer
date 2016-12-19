@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "NPacket.h"
 
-CMemoryPool<CNPacket> CNPacket::_MemPool(1000);
+CMemoryPool<CNPacket> CNPacket::_MemPool(100000);
 CNPacket *CNPacket::cPacket = NULL;
 long CNPacket::m_lRefCnt = 0;
 
@@ -345,11 +345,15 @@ CNPacket*	CNPacket::Alloc()
 //////////////////////////////////////////////////////////////////////////
 bool CNPacket::Free()
 {
+	/*
 	if (0 < InterlockedDecrement(&m_lRefCnt))
 	{
 		_MemPool.Free(this);
 		return true;
 	}
+	*/
 
+	_MemPool.Free(this);
+	InterlockedDecrement(&m_lRefCnt);
 	return false;
 }
