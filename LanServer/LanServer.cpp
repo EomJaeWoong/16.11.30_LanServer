@@ -185,7 +185,13 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 			InterlockedAdd((LONG *)&_RecvPacketCounter, dwTransferred / 10);
 		}
 		
-		//send
+		/////////////////////////////////////////////////////////////////////////////////////////////
+		// Send 완료
+		// 1. 데이터 온 만큼 SendQ에 ReadPos 이동
+		// 2. SendFlag 끔
+		// 3. OnSend 호출
+		// 4. Send 카운터 + 1
+		/////////////////////////////////////////////////////////////////////////////////////////////
 		else if (pOverlapped == &pSession->_SendOverlapped)
 		{
 			pSession->SendQ.RemoveData(dwTransferred);
@@ -248,6 +254,7 @@ int CLanServer::AcceptThread_Update(LPVOID acceptArg)
 		if (!retval)
 			continue;
 
+		//InterlockedIncrement64((LONG64 *)&pSession->_lIOCount);
 		OnClientJoin(pSession, pSession->_iSessionID);
 
 		RecvPost(pSession);
@@ -268,7 +275,7 @@ int CLanServer::MonitorThread_Update(LPVOID monitorArg)
 		_AcceptCounter = 0;
 		_RecvPacketCounter = 0;
 		_SendPacketCounter = 0;
-
+		
 		wprintf(L"------------------------------------------------\n");
 		wprintf(L"Connect Session : %d\n", iSessionCount);
 		wprintf(L"Accept TPS : %d\n", _AcceptTPS);

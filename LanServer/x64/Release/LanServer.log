@@ -1,4 +1,4 @@
-﻿빌드 시작: 2016-12-19 오후 2:21:09
+﻿빌드 시작: 2016-12-28 오후 3:12:40
      1>2 노드의 "C:\Users\USER\Documents\Visual Studio 2013\Projects\16.11.30_LanServer\LanServer\LanServer.vcxproj" 프로젝트(Build 대상)입니다.
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\CL.exe /c /Zi /nologo /W3 /WX- /sdl /Od /Oi /GL /D WIN32 /D NDEBUG /D _CONSOLE /D _LIB /D _UNICODE /D UNICODE /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"x64\Release\\" /Fd"x64\Release\vc120.pdb" /Gd /TP /errorReport:prompt NPacket.cpp
@@ -18,4 +18,4 @@
 
 빌드했습니다.
 
-경과 시간: 00:00:01.46
+경과 시간: 00:00:02.84

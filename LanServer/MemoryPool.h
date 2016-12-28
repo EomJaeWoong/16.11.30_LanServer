@@ -34,6 +34,137 @@
 #include <new.h>
 
 template <class DATA>
+class CLockfreeStack
+{
+public:
+
+	struct st_NODE
+	{
+		DATA	Data;
+		st_NODE *pNext;
+	};
+
+	struct st_TOP_NODE
+	{
+		st_NODE *pTopNode;
+		__int64 iUniqueNum;
+	};
+
+public:
+
+	/////////////////////////////////////////////////////////////////////////
+	// 생성자
+	//
+	// Parameters: 없음.
+	// Return: 없음.
+	/////////////////////////////////////////////////////////////////////////
+	CLockfreeStack()
+	{
+		_lUseSize = 0;
+		_iUniqueNum = 0;
+
+		_pTop = (st_TOP_NODE *)_aligned_malloc(sizeof(st_TOP_NODE), 16);
+		_pTop->pTopNode = NULL;
+		_pTop->iUniqueNum = 0;
+	}
+
+	/////////////////////////////////////////////////////////////////////////
+	// 생성자
+	//
+	// Parameters: 없음.
+	// Return: 없음.
+	/////////////////////////////////////////////////////////////////////////
+	virtual ~CLockfreeStack()
+	{
+		st_NODE *pNode;
+		while (_pTop->pTopNode != NULL)
+		{
+			pNode = _pTop->pTopNode;
+			_pTop->pTopNode = _pTop->pTopNode->pNext;
+			free(pNode);
+		}
+	}
+
+	/////////////////////////////////////////////////////////////////////////
+	// 현재 사용중인 용량 얻기.
+	//
+	// Parameters: 없음.
+	// Return: (int)사용중인 용량.
+	/////////////////////////////////////////////////////////////////////////
+	long	GetUseSize(void);
+
+	/////////////////////////////////////////////////////////////////////////
+	// 데이터가 비었는가 ?
+	//
+	// Parameters: 없음.
+	// Return: (bool)true, false
+	/////////////////////////////////////////////////////////////////////////
+	bool	isEmpty(void)
+	{
+		if (_pTop->pTopNode == NULL)
+			return true;
+
+		return false;
+	}
+
+
+	/////////////////////////////////////////////////////////////////////////
+	// CPacket 포인터 데이타 넣음.
+	//
+	// Parameters: (DATA)데이타.
+	// Return: (bool) true, false
+	/////////////////////////////////////////////////////////////////////////
+	bool	Push(DATA Data)
+	{
+		st_NODE *pNode = new st_NODE;
+		st_TOP_NODE pPreTopNode;
+		__int64 iUniqueNum = InterlockedIncrement64(&_iUniqueNum);
+
+		do {
+			pPreTopNode.pTopNode = _pTop->pTopNode;
+			pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
+
+			pNode->Data = Data;
+			pNode->pNext = _pTop->pTopNode;
+		} while (!InterlockedCompareExchange128((volatile LONG64 *)_pTop, iUniqueNum, (LONG64)pNode, (LONG64 *)&pPreTopNode));
+		_lUseSize += sizeof(pNode);
+
+		return true;
+	}
+
+	/////////////////////////////////////////////////////////////////////////
+	// 데이타 빼서 가져옴.
+	//
+	// Parameters: (DATA *) 뽑은 데이터 넣어줄 포인터
+	// Return: (bool) true, false
+	/////////////////////////////////////////////////////////////////////////
+	bool	Pop(DATA *pOutData)
+	{
+		st_TOP_NODE pPreTopNode;
+		st_NODE *pNode;
+		__int64 iUniqueNum = InterlockedIncrement64(&_iUniqueNum);
+
+		do
+		{
+			pPreTopNode.pTopNode = _pTop->pTopNode;
+			pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
+
+			pNode = _pTop->pTopNode;
+		} while (!InterlockedCompareExchange128((volatile LONG64 *)_pTop, iUniqueNum, (LONG64)_pTop->pTopNode->pNext, (LONG64 *)&pPreTopNode));
+		*pOutData = pPreTopNode.pTopNode->Data;
+		delete pNode;
+		return true;
+	}
+
+private:
+
+	long			_lUseSize;
+
+	st_TOP_NODE	*_pTop;
+	__int64			_iUniqueNum;
+};
+
+template <class DATA>
 class CMemoryPool
 {
 private:
@@ -50,11 +181,6 @@ private:
 		st_BLOCK_NODE *stpNextBlock;
 	};
 
-	struct st_NODE
-	{
-		st_BLOCK_NODE stBlockNode;
-		DATA data;
-	};
 public:
 
 	//////////////////////////////////////////////////////////////////////////
@@ -76,38 +202,44 @@ public:
 
 	void Initial(int iBlockNum, bool bLockFlag = false)
 	{
+		st_BLOCK_NODE *pNode, *pPreNode;
+
 		////////////////////////////////////////////////////////////////
 		// 메모리 풀 크기 설정
 		////////////////////////////////////////////////////////////////
 		m_iBlockCount = iBlockNum;
 
-		if (iBlockNum <= 0)	return;
+		if (iBlockNum < 0)	return;
 
-		////////////////////////////////////////////////////////////////
-		// DATA * 개수 크기만 큼 메모리 할당
-		////////////////////////////////////////////////////////////////
-		m_stBlockHeader = new char[(sizeof(DATA) + sizeof(st_BLOCK_NODE)) * m_iBlockCount];
-
-		m_stpTop = (st_BLOCK_NODE *)m_stBlockHeader;
-		char *pBlock = (char *)m_stpTop;
-		st_BLOCK_NODE *stpNode = m_stpTop;
-
-		////////////////////////////////////////////////////////////////
-		// BLOCK 연결
-		////////////////////////////////////////////////////////////////
-		for (int iCnt = 0; iCnt < m_iBlockCount - 1; iCnt++)
+		else if (iBlockNum == 0)
 		{
-			pBlock += sizeof(DATA) + sizeof(st_BLOCK_NODE);
-			stpNode->stpNextBlock = (st_BLOCK_NODE *)pBlock;
-			stpNode = stpNode->stpNextBlock;
+			m_bStoreFlag = true;
+			m_stBlockHeader = NULL;
 		}
 
-		stpNode->stpNextBlock = NULL;
+		else
+		{
+			m_bStoreFlag = false;
+
+			pNode = (st_BLOCK_NODE *)malloc(sizeof(DATA) + sizeof(st_BLOCK_NODE));
+			m_stBlockHeader = pNode;
+			pPreNode = pNode;
+
+			m_LockfreeStack.Push(pNode);
+
+			for (int iCnt = 1; iCnt < iBlockNum; iCnt++)
+			{
+				pNode = (st_BLOCK_NODE *)malloc(sizeof(DATA) + sizeof(st_BLOCK_NODE));
+				pPreNode->stpNextBlock = pNode;
+				pPreNode = pNode;
+
+				m_LockfreeStack.Push(pNode);
+			}
+		}
 	}
 
 	void Release()
 	{
-		m_stpTop = NULL;
 		delete[] m_stBlockHeader;
 	}
 
@@ -121,12 +253,22 @@ public:
 	{
 		st_BLOCK_NODE *stpBlock;
 
-		if (m_iBlockCount <= m_iAllocCount)		return NULL;
-		
-		stpBlock = m_stpTop;
-		m_stpTop = stpBlock->stpNextBlock;
+		if (m_iBlockCount <= m_iAllocCount)
+		{
+			stpBlock = (st_BLOCK_NODE *)malloc(sizeof(DATA) + sizeof(st_BLOCK_NODE));
+			InterlockedIncrement64((LONG64 *)&m_iBlockCount);
+			InterlockedIncrement64((LONG64 *)&m_iAllocCount);
+		}
 
-		return (DATA *)(stpBlock+1);
+		else
+		{
+			if (!m_LockfreeStack.Pop(&stpBlock))
+				return NULL;
+		}
+
+		if (bPlacementNew)	new ((DATA *)(stpBlock + 1)) DATA;
+
+		return (DATA *)(stpBlock + 1);
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -137,14 +279,11 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	bool	Free(DATA *pData)
 	{
-		st_BLOCK_NODE *stpBlock;
+		if (!m_LockfreeStack.Push((st_BLOCK_NODE *)pData - 1))
+			return false;
 
-		stpBlock = ((st_BLOCK_NODE *)pData - 1);
-		stpBlock->stpNextBlock = m_stpTop;
-
-		m_stpTop = stpBlock;
-
-		return false;
+		InterlockedIncrement64((LONG64 *)&m_iAllocCount);
+		return true;
 	}
 
 
@@ -157,20 +296,22 @@ public:
 	int		GetAllocCount(void) { return m_iAllocCount; }
 
 private :
-	//////////////////////////////////////////////////////////////////////////
-	// 블록 스택의 탑
-	//////////////////////////////////////////////////////////////////////////
-	st_BLOCK_NODE *m_stpTop;
+	CLockfreeStack<st_BLOCK_NODE *> m_LockfreeStack;
 
 	//////////////////////////////////////////////////////////////////////////
 	// 노드 구조체 헤더
 	//////////////////////////////////////////////////////////////////////////
-	char *m_stBlockHeader;
+	st_BLOCK_NODE *m_stBlockHeader;
 
 	//////////////////////////////////////////////////////////////////////////
 	// 메모리 Lock 플래그
 	//////////////////////////////////////////////////////////////////////////
 	bool m_bLockFlag;
+
+	//////////////////////////////////////////////////////////////////////////
+	// 메모리 동적 플래그, true면 필요할떄마다 새로 동적으로 생성
+	//////////////////////////////////////////////////////////////////////////
+	bool m_bStoreFlag;
 
 	//////////////////////////////////////////////////////////////////////////
 	// 현재 사용중인 블럭 개수
