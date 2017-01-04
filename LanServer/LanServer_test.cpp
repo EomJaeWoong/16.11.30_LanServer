@@ -66,42 +66,7 @@ bool CLanServerTest::OnConnectionRequest(WCHAR *ClientIP, int Port)		// accept �
 
 void CLanServerTest::OnRecv(__int64 ClientID, CNPacket *pPacket)			// 패킷 수신 완료 후
 {
-	/*
-	CNPacket *pSendQPacket = CNPacket::Alloc();
-	CNPacket *pSendPacket;
-	*/
-
-	CNPacket *Packet = CNPacket::Alloc();
-
-	while (pPacket->GetDataSize() > 0)
-	{
-		short sHeader;
-		__int64 iPayload;
-
-		*pPacket >> sHeader;
-		*pPacket >> iPayload;
-
-		if (sHeader != sizeof(iPayload))
-			return;
-
-		////////////////////////////////////////////////////////////////
-		// 패킷 제작
-		////////////////////////////////////////////////////////////////
-		/*
-		pSendPacket = CNPacket::Alloc();
-
-		*pSendPacket << (short)8;
-		*pSendPacket << iPayload;
-
-		*pSendQPacket << (__int64)&pSendPacket;
-		*/
-		*Packet << (short)8;
-		*Packet << iPayload;
-	}
-
-	SendPacket(ClientID, Packet);
-	//pSendQPacket->Free();
-	Packet->Free();
+	SendPacket(ClientID, pPacket);
 }
 
 void CLanServerTest::OnSend(__int64 ClientID, int sendsize)				// 패킷 송신 완료 후

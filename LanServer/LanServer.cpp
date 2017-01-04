@@ -118,7 +118,6 @@ void CLanServer::Stop()
 int CLanServer::WorkerThread_Update(LPVOID workerArg)
 {
 	int retval;
-	WSABUF wsaBuf;
 
 	while (1)
 	{
@@ -168,18 +167,19 @@ int CLanServer::WorkerThread_Update(LPVOID workerArg)
 		// 4. Recv 등록
 		// 5. Recv 카운터 + 1
 		/////////////////////////////////////////////////////////////////////////////////////////////
+		// 여기서 패킷 검증까지 다하고 OnRecv해줘야됨
+		// OnRecv에서는 컨텐츠만
 		else if (pOverlapped == &pSession->_RecvOverlapped)
 		{
 			CNPacket *pPacket = CNPacket::Alloc();
 
-			pSession->RecvQ.MoveWritePos(dwTransferred);
+			while (1)
+			{
+				if (!PacketProc(pSession, pPacket))		break;
+				OnRecv(pSession->_iSessionID, pPacket);
+			}
 
-			int iSize = pPacket->Put(pSession->RecvQ.GetReadBufferPtr(), pSession->RecvQ.GetUseSize());
-			pSession->RecvQ.RemoveData(iSize);
-
-			OnRecv(pSession->_iSessionID, pPacket);
 			pPacket->Free();
-
 			RecvPost(pSession);
 
 			InterlockedAdd((LONG *)&_RecvPacketCounter, dwTransferred / 10);
@@ -306,7 +306,7 @@ unsigned __stdcall CLanServer::MonitorThread(LPVOID monitorArg)
 
 void CLanServer::RecvPost(CSession *pSession)
 {
-	int retval, iCount;
+	int retval;
 	DWORD dwRecvSize, dwflag = 0;
 	WSABUF wBuf;
 
@@ -343,17 +343,6 @@ BOOL CLanServer::SendPost(CSession *pSession)
 	wBuf.buf = pSession->SendQ.GetReadBufferPtr();
 	wBuf.len = pSession->SendQ.GetUseSize();
 
-	/*
-	while (pSession->SendQ.GetUseSize() > 0)
-	{
-		pSession->SendQ.Get((char *)pPacket, 8);
-
-		wBuf[iCount].buf = (char *)pPacket->GetBufferPtr();
-		wBuf[iCount].len = pPacket->GetDataSize();
-		InterlockedIncrement((LONG *)&_SendPacketCounter);
-	}
-	*/
-
 	if (pSession->_bSendFlag == TRUE)	return FALSE;
 
 	else{
@@ -375,6 +364,37 @@ BOOL CLanServer::SendPost(CSession *pSession)
 		}
 	}
 	
+	return TRUE;
+}
+
+bool CLanServer::PacketProc(CSession *pSession, CNPacket *pPacket)
+{
+	short header;
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	// RecvQ 용량이 header보다 작은지 검사
+	//////////////////////////////////////////////////////////////////////////////////////////
+	if (pSession->RecvQ.GetUseSize() < sizeof(header))
+		return FALSE;
+
+	pSession->RecvQ.Peek((char *)&header, sizeof(header));
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//header + payload 용량이 RecvQ용량보다 큰지 검사
+	//////////////////////////////////////////////////////////////////////////////////////////
+	if (pSession->RecvQ.GetUseSize() < header + sizeof(header))
+		return FALSE;
+
+	*pPacket << header;
+	pSession->RecvQ.RemoveData(header);
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//payload를 cPacket에 뽑고 같은지 검사
+	//////////////////////////////////////////////////////////////////////////////////////////
+	if (header !=
+		pSession->RecvQ.Get((char *)pPacket->GetBufferPtr(), header))
+		return FALSE;
+
 	return TRUE;
 }
 

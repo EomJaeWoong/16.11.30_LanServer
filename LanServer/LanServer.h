@@ -115,6 +115,8 @@ protected :
 	void RecvPost(CSession *pSession);
 	BOOL SendPost(CSession *pSession);
 
+	bool PacketProc(CSession *pSession, CNPacket *pPacket);
+
 public :
 	int WorkerThread_Update(LPVOID workerArg);
 	int AcceptThread_Update(LPVOID acceptArg);
